@@ -1,0 +1,150 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model VideoAnalysis {
+  videoId            String    @id @map("video_id")
+  platform           String    // 'youtube' | 'tiktok' | 'instagram' | 'facebook'
+  publishTimestamp   DateTime  @map("publish_timestamp")
+  title              String
+  channelId          String?   @map("channel_id")
+  channelName        String?   @map("channel_name")
+  videoUrl           String?   @map("video_url")
+  thumbnailUrl       String?   @map("thumbnail_url")
+  durationSeconds    Int?      @map("duration_seconds")
+  dachSignalTier     Int?      @map("dach_signal_tier")
+  dachSignalScore    Float?    @map("dach_signal_score")
+  geoDistribution    Json?     @map("geo_distribution")
+  hashtags           String[]
+  languageDetected   String?   @map("language_detected")
+  vehicleCategory    String?   @map("vehicle_category")
+
+  // Hook metrics
+  hsi                Float?
+  hsiEstimated       Boolean   @default(false) @map("hsi_estimated")
+  hsiBenchmark       Float?    @map("hsi_benchmark")
+
+  // Retention
+  retentionCurve     Json?     @map("retention_curve")
+  dropOffPoints      Json?     @map("drop_off_points")
+  rdpResilienceScore Float?    @map("rdp_resilience_score")
+  rdpEstimated       Boolean   @default(false) @map("rdp_estimated")
+
+  // Engagement velocity
+  ev1h               Float?    @map("ev_1h")
+  ev6h               Float?    @map("ev_6h")
+  ev24h              Float?    @map("ev_24h")
+  evPartial          Boolean   @default(false) @map("ev_partial")
+  evBenchmark90d     Float?    @map("ev_benchmark_90d")
+  evShareWeight      Float     @default(1.0) @map("ev_share_weight")
+
+  // Audio
+  bpm                Float?
+  dominantFreqBand   String?   @map("dominant_freq_band")
+  audioCorrelation   Float?    @map("audio_correlation")
+  accSignalPerVideo  Float?    @map("acc_signal_per_video")
+  accEstimated       Boolean   @default(false) @map("acc_estimated")
+
+  // Visual pacing
+  vpi                Float?
+  vpiOptimalMatch    Float?    @map("vpi_optimal_match")
+  vpiEstimated       Boolean   @default(false) @map("vpi_estimated")
+
+  // View velocity
+  viewsAt6h          BigInt?   @map("views_at_6h")
+  viewsAt48h         BigInt?   @map("views_at_48h")
+  viewVelocityBonus  Boolean   @default(false) @map("view_velocity_bonus")
+
+  // Virality score
+  viralityScore      Float?    @map("virality_score")
+  viralityTier       String?   @map("virality_tier")
+  vsConfidence       String?   @map("vs_confidence")
+
+  // CV annotations (Phase 2)
+  cvAnnotations      Json?     @map("cv_annotations")
+
+  // Metadata
+  analyzedAt         DateTime  @default(now()) @map("analyzed_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  rawApiResponse     Json?     @map("raw_api_response")
+
+  snapshots          VideoSnapshot[]
+
+  @@index([platform])
+  @@index([publishTimestamp(sort: Desc)])
+  @@index([viralityScore(sort: Desc)])
+  @@index([viralityTier])
+  @@index([vehicleCategory])
+  @@index([analyzedAt(sort: Desc)])
+  @@map("video_analyses")
+}
+
+model VideoSnapshot {
+  id                Int           @id @default(autoincrement())
+  videoId           String        @map("video_id")
+  snapshotAt        DateTime      @map("snapshot_at")
+  hoursSincePublish Float         @map("hours_since_publish")
+  viewCount         BigInt?       @map("view_count")
+  likeCount         BigInt?       @map("like_count")
+  commentCount      BigInt?       @map("comment_count")
+  shareCount        BigInt?       @map("share_count")
+
+  video             VideoAnalysis @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+
+  @@unique([videoId, hoursSincePublish])
+  @@index([videoId])
+  @@map("video_snapshots")
+}
+
+model NicheBenchmark {
+  id           Int      @id @default(autoincrement())
+  platform     String
+  metricName   String   @map("metric_name")
+  metricValue  Float    @map("metric_value")
+  computedAt   DateTime @default(now()) @map("computed_at")
+  windowDays   Int      @default(90) @map("window_days")
+  sampleCount  Int?     @map("sample_count")
+
+  @@unique([platform, metricName])
+  @@map("niche_benchmarks")
+}
+
+model AlertRule {
+  id              Int      @id @default(autoincrement())
+  name            String
+  conditionJson   Json     @map("condition_json")
+  deliveryChannel String?  @map("delivery_channel")
+  deliveryTarget  String?  @map("delivery_target")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  notifications   AlertNotification[]
+
+  @@map("alert_rules")
+}
+
+model AlertNotification {
+  id          Int       @id @default(autoincrement())
+  ruleId      Int       @map("rule_id")
+  videoId     String    @map("video_id")
+  triggeredAt DateTime  @default(now()) @map("triggered_at")
+  delivered   Boolean   @default(false)
+  payloadJson Json?     @map("payload_json")
+
+  rule        AlertRule @relation(fields: [ruleId], references: [id])
+
+  @@map("alert_notifications")
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
